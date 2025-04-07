@@ -16,26 +16,39 @@ Visit: [https://datafluencygroup5.streamlit.app](https://datafluencygroup5.strea
 
 ### Team Members
 
+<style>
+.team-img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+</style>
+
 <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
   <div style="text-align: center; width: 150px;">
-    <img src="pictures/Rayane Boumediene Mazari.jpeg" alt="Rayane Boumediene Mazari" width="120" style="border-radius: 50%;"/><br/>
+    <img src="pictures/Rayane Boumediene Mazari.jpeg" alt="Rayane Boumediene Mazari" class="team-img" width="120" height="120" style="border-radius: 50%; object-fit: cover;"/><br/>
     <strong>Rayane Boumediene Mazari</strong>
   </div>
   <div style="text-align: center; width: 150px;">
-    <img src="pictures/Alp Eyupoglu.jpeg" alt="Alp Eyupoglu" width="120" style="border-radius: 50%;"/><br/>
+    <img src="pictures/Alp Eyupoglu.jpeg" alt="Alp Eyupoglu" class="team-img" width="120" height="120" style="border-radius: 50%; object-fit: cover;"/><br/>
     <strong>Alp Eyupoglu</strong>
   </div>
   <div style="text-align: center; width: 150px;">
-    <img src="pictures/Maria Alcalde.jpeg" alt="Maria Alcalde" width="120" style="border-radius: 50%;"/><br/>
+    <img src="pictures/Maria Alcalde.jpeg" alt="Maria Alcalde" class="team-img" width="120" height="120" style="border-radius: 50%; object-fit: cover;"/><br/>
     <strong>Maria Alcalde</strong>
   </div>
   <div style="text-align: center; width: 150px;">
-    <img src="pictures/José ,aria Teixeira.jpeg" alt="José Maria Teixeira" width="120" style="border-radius: 50%;"/><br/>
+    <img src="pictures/José ,aria Teixeira.jpeg" alt="José Maria Teixeira" class="team-img" width="120" height="120" style="border-radius: 50%; object-fit: cover;"/><br/>
     <strong>José Maria Teixeira</strong>
   </div>
   <div style="text-align: center; width: 150px;">
-    <img src="pictures/Matteo.jpeg" alt="Matteo" width="120" style="border-radius: 50%;"/><br/>
+    <img src="pictures/Matteo.jpeg" alt="Matteo" class="team-img" width="120" height="120" style="border-radius: 50%; object-fit: cover;"/><br/>
     <strong>Matteo</strong>
+  </div>
+  <div style="text-align: center; width: 150px;">
+    <img src="pictures/Jacob.jpeg" alt="Jacob" class="team-img" width="120" height="120" style="border-radius: 50%; object-fit: cover;"/><br/>
+    <strong>Jacob</strong>
   </div>
 </div>
 

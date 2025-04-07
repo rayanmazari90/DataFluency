@@ -353,6 +353,69 @@ df_engineered = engineer_features(df)
 if page == "Data Overview":
     st.title("🎵 Music & Mental Health: Data Overview")
     
+    # Add Team and QR code at the beginning
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("""
+        ### Team Members
+        """)
+        
+        # Create a 3-column layout for team members, with consistent image size
+        image_width = 120  # Set consistent width for all images
+        team_col1, team_col2, team_col3 = st.columns(3)
+        
+        # Custom function to display team member image with consistent sizing
+        def display_team_member(image_path, name, width=image_width):
+            # Apply CSS for consistent sizing and circular cropping
+            st.markdown(f"""
+            <style>
+            .team-img-{name.replace(" ", "-")} {{
+                width: {width}px;
+                height: {width}px;
+                object-fit: cover;
+                border-radius: 50%;
+                margin-bottom: 10px;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Display the image with HTML to apply the custom styling
+            st.markdown(f"""
+            <div style="text-align: center;">
+                <img src="data:image/jpeg;base64,{get_image_base64(image_path)}" class="team-img-{name.replace(" ", "-")}" alt="{name}">
+                <p><strong>{name}</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Function to convert image to base64
+        def get_image_base64(image_path):
+            import base64
+            with open(image_path, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode('utf-8')
+
+        with team_col1:
+            display_team_member("pictures/Rayane Boumediene Mazari.jpeg", "Rayane Boumediene Mazari")
+            display_team_member("pictures/Jacob.jpeg", "Jacob")
+
+        with team_col2:
+            display_team_member("pictures/Alp Eyupoglu.jpeg", "Alp Eyupoglu")
+            display_team_member("pictures/Matteo.jpeg", "Matteo")
+
+        with team_col3:
+            display_team_member("pictures/Maria Alcalde.jpeg", "Maria Alcalde")
+            display_team_member("pictures/José ,aria Teixeira.jpeg", "José Maria Teixeira")
+    
+    with col2:
+        st.markdown("""
+        ### Try Our Live Dashboard
+        Scan this QR code to access the dashboard:
+        """)
+        st.image("https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://datafluencygroup5.streamlit.app", width=200)
+        st.markdown("[https://datafluencygroup5.streamlit.app](https://datafluencygroup5.streamlit.app)")
+    
+    st.markdown("---")
+    
     st.markdown("""
     This dashboard explores the relationship between music listening habits and mental health metrics.
     Below are key metrics from our dataset, showing the scale and scope of our analysis.
