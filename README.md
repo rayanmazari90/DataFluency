@@ -6,6 +6,39 @@ This interactive dashboard explores the relationship between music consumption h
 
 ![Dashboard Preview](https://i.imgur.com/placeholder.jpg)
 
+### Try Our Live Dashboard
+
+Scan this QR code to access our interactive dashboard:
+
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://datafluencygroup5.streamlit.app" alt="QR Code to Streamlit App" width="200"/>
+
+Visit: [https://datafluencygroup5.streamlit.app](https://datafluencygroup5.streamlit.app)
+
+### Team Members
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+  <div style="text-align: center; width: 150px;">
+    <img src="pictures/Rayane Boumediene Mazari.jpeg" alt="Rayane Boumediene Mazari" width="120" style="border-radius: 50%;"/><br/>
+    <strong>Rayane Boumediene Mazari</strong>
+  </div>
+  <div style="text-align: center; width: 150px;">
+    <img src="pictures/Alp Eyupoglu.jpeg" alt="Alp Eyupoglu" width="120" style="border-radius: 50%;"/><br/>
+    <strong>Alp Eyupoglu</strong>
+  </div>
+  <div style="text-align: center; width: 150px;">
+    <img src="pictures/Maria Alcalde.jpeg" alt="Maria Alcalde" width="120" style="border-radius: 50%;"/><br/>
+    <strong>Maria Alcalde</strong>
+  </div>
+  <div style="text-align: center; width: 150px;">
+    <img src="pictures/José ,aria Teixeira.jpeg" alt="José Maria Teixeira" width="120" style="border-radius: 50%;"/><br/>
+    <strong>José Maria Teixeira</strong>
+  </div>
+  <div style="text-align: center; width: 150px;">
+    <img src="pictures/Matteo.jpeg" alt="Matteo" width="120" style="border-radius: 50%;"/><br/>
+    <strong>Matteo</strong>
+  </div>
+</div>
+
 ## Key Insights
 
 Our analysis revealed several significant patterns:
