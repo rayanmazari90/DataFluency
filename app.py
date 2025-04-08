@@ -26,17 +26,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Apply custom styling
+# Apply custom styling for dark theme
 st.markdown("""
 <style>
+    /* Force dark theme */
+    html, body, [class*="css"] {
+        background-color: #0E1117 !important;
+        color: #FAFAFA !important;
+    }
     .main {
         padding: 1rem;
+        background-color: #0E1117;
+        color: #FAFAFA;
     }
     .stMetric {
         background-color: #073763;
         border-radius: 10px;
         padding: 15px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        color: white;
     }
     h1, h2, h3 {
         color: #3B6AA0;
@@ -48,9 +56,10 @@ st.markdown("""
         gap: 8px;
     }
     .stTabs [data-baseweb="tab"] {
-        background-color: #050101;
+        background-color: #1E1E1E;
         border-radius: 8px;
         padding: 8px 16px;
+        color: #FAFAFA;
     }
     .stTabs [aria-selected="true"] {
         background-color: #3B6AA0;
@@ -59,6 +68,31 @@ st.markdown("""
     /* Increase plot height */
     .stPlotlyChart {
         min-height: 500px;
+    }
+    /* Force dark theme elements */
+    div.stDataFrame {
+        background-color: #1E1E1E;
+        color: #FAFAFA;
+    }
+    div.stTable {
+        background-color: #1E1E1E;
+        color: #FAFAFA;
+    }
+    .css-1d391kg, .css-14xtw13 {
+        background-color: #0E1117;
+        color: #FAFAFA;
+    }
+    .streamlit-expanderHeader {
+        background-color: #1E1E1E;
+        color: #FAFAFA;
+    }
+    .stSelectbox {
+        background-color: #1E1E1E;
+        color: #FAFAFA;
+    }
+    .streamlit-expanderContent {
+        background-color: #0E1117;
+        color: #FAFAFA;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1705,89 +1739,7 @@ elif page == "Hypothesis Testing":
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Nonlinear relationship visualization
-        st.subheader("Nonlinear Relationship Modeling")
-        
-        # Create a copy of data for manipulation
-        model_data = df_engineered[['Hours_Per_Day', selected_mh]].copy().dropna()
-        
-        # Create squared term for hours (for quadratic relationship)
-        model_data['Hours_Squared'] = model_data['Hours_Per_Day'] ** 2
-        
-        # Run polynomial regression
-        X_poly = sm.add_constant(model_data[['Hours_Per_Day', 'Hours_Squared']])
-        y_poly = model_data[selected_mh]
-        
-        poly_model = sm.OLS(y_poly, X_poly).fit()
-        
-        # Get p-value for quadratic term
-        hours_sq_p = poly_model.pvalues['Hours_Squared']
-        is_quadratic = hours_sq_p < 0.05
-        
-        # Create prediction for visualization
-        x_range = np.linspace(model_data['Hours_Per_Day'].min(), model_data['Hours_Per_Day'].max(), 100)
-        X_pred = pd.DataFrame({
-            'Hours_Per_Day': x_range,
-            'Hours_Squared': x_range ** 2
-        })
-        X_pred = sm.add_constant(X_pred)
-        y_pred = poly_model.predict(X_pred)
-        
-        # Create scatter plot with quadratic fit
-        fig = px.scatter(model_data, x='Hours_Per_Day', y=selected_mh, 
-                       opacity=0.6, title=f'Nonlinear Relationship: Hours and {selected_mh}')
-        
-        # Add prediction line
-        fig.add_trace(
-            go.Scatter(
-                x=x_range, 
-                y=y_pred, 
-                mode='lines', 
-                name='Quadratic Fit',
-                line=dict(color='red', width=3)
-            )
-        )
-        
-        # Find the optimal point if it's a quadratic relationship
-        if is_quadratic and poly_model.params['Hours_Squared'] > 0:  # U-shaped curve
-            optimal_hours_value = -poly_model.params['Hours_Per_Day'] / (2 * poly_model.params['Hours_Squared'])
-            # Only show if it's within the observed range
-            if optimal_hours_value >= model_data['Hours_Per_Day'].min() and optimal_hours_value <= model_data['Hours_Per_Day'].max():
-                # Calculate the predicted value at optimal point
-                optimal_pred = poly_model.params['const'] + \
-                              poly_model.params['Hours_Per_Day'] * optimal_hours_value + \
-                              poly_model.params['Hours_Squared'] * (optimal_hours_value ** 2)
-                
-                # Add marker for optimal point
-                fig.add_trace(
-                    go.Scatter(
-                        x=[optimal_hours_value],
-                        y=[optimal_pred],
-                        mode='markers',
-                        marker=dict(color='green', size=15, symbol='star'),
-                        name=f'Optimal Hours: {optimal_hours_value:.1f}'
-                    )
-                )
-                
-                # Add annotation for optimal point
-                fig.add_annotation(
-                    x=optimal_hours_value,
-                    y=optimal_pred,
-                    text=f"Optimal: {optimal_hours_value:.1f} hours",
-                    showarrow=True,
-                    arrowhead=1,
-                    ax=0,
-                    ay=-40
-                )
-        
-        fig.update_layout(
-            xaxis_title='Hours Per Day',
-            yaxis_title=f'{selected_mh} Score (Lower is Better)',
-            height=500
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
+
         # Calculate recommended hours for each mental health metric
         st.subheader("Recommended Listening Hours by Mental Health Metric")
         
@@ -1798,7 +1750,7 @@ elif page == "Hypothesis Testing":
             if not metric_by_hours.empty:
                 # Find the hour category with minimum symptom score
                 optimal_idx = metric_by_hours.argmin()
-                optimal_ranges[metric] = optimal_idx
+                optimal_ranges[metric] = metric_by_hours.index[optimal_idx]
             else:
                 optimal_ranges[metric] = "N/A"
             
