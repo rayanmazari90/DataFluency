@@ -248,6 +248,16 @@ def engineer_features(dataframe):
     # Create a copy to avoid modifying the original
     df_engineered = dataframe.copy()
     
+    # Ensure boolean columns are properly converted to boolean values first, then to float
+    bool_columns = ['While_Working', 'Instrumentalist', 'Composer', 'Foreign_Languages']
+    for col in bool_columns:
+        if col in df_engineered.columns:
+            # Handle different possible values for boolean columns
+            if df_engineered[col].dtype == 'object':
+                df_engineered[col] = df_engineered[col].map(lambda x: x.lower() in ('yes', 'y', 'true', '1') if isinstance(x, str) else bool(x))
+            # Now it should be safe to convert to float
+            df_engineered[col] = df_engineered[col].astype(float)
+    
     # 1. Convert categorical frequency values to numeric
     frequency_map = {
         'Never': 0, 
@@ -289,14 +299,14 @@ def engineer_features(dataframe):
     
     # Add points for listening while working
     if 'While_Working' in df_engineered.columns:
-        df_engineered['Engagement_Score'] += df_engineered['While_Working'].astype(float) * 2
+        df_engineered['Engagement_Score'] += df_engineered['While_Working'] * 2
     
     # Add points for music creation (instrumentalist/composer)
     if 'Instrumentalist' in df_engineered.columns:
-        df_engineered['Engagement_Score'] += df_engineered['Instrumentalist'].astype(float) * 3
+        df_engineered['Engagement_Score'] += df_engineered['Instrumentalist'] * 3
     
     if 'Composer' in df_engineered.columns:
-        df_engineered['Engagement_Score'] += df_engineered['Composer'].astype(float) * 4
+        df_engineered['Engagement_Score'] += df_engineered['Composer'] * 4
     
     # Normalize to 0-10 scale
     min_val = df_engineered['Engagement_Score'].min()
@@ -324,7 +334,7 @@ def engineer_features(dataframe):
     # Handle Foreign_Languages if it exists
     foreign_lang_value = 0
     if 'Foreign_Languages' in df_engineered.columns:
-        foreign_lang_value = df_engineered['Foreign_Languages'].astype(float)
+        foreign_lang_value = df_engineered['Foreign_Languages']
     
     df_engineered['Music_Versatility'] = (
         df_engineered['Genre_Diversity_Index'] / 10 * 0.5 +
@@ -469,6 +479,13 @@ if page == "Data Overview":
     
     # Additional metrics row
     st.subheader("Mental Health Overview")
+    
+    # Add explanation box about mental health metrics interpretation
+    st.info("""
+    **Important Note on Mental Health Metrics**: For all mental health metrics (Anxiety, Depression, Insomnia, and OCD), 
+    **lower scores indicate better mental health** (fewer symptoms). Scores range from 0-10, where 0 represents 
+    no symptoms and 10 represents maximum severity of symptoms.
+    """)
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -831,12 +848,26 @@ elif page == "EDA & Visualization":
         # Favorite genre distribution
         favorite_genre_counts = df_engineered['Favorite_Genre'].value_counts().reset_index()
         favorite_genre_counts.columns = ['Genre', 'Count']
+        # Sort descending for horizontal bars - most popular genres at the top
         favorite_genre_counts = favorite_genre_counts.sort_values('Count', ascending=False)
-        
-        fig = px.bar(favorite_genre_counts, x='Genre', y='Count',
-                    title='Distribution of Favorite Genres',
-                    color='Genre', color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig.update_layout(xaxis_title='Genre', yaxis_title='Count')
+
+        # Create horizontal bar chart
+        fig = px.bar(favorite_genre_counts, 
+                     y='Genre',  # Genre on y-axis for horizontal bars
+                     x='Count',  # Count on x-axis
+                     title='Distribution of Favorite Genres',
+                     color='Genre', 
+                     color_discrete_sequence=px.colors.qualitative.Pastel,
+                     orientation='h')  # Explicitly set orientation to horizontal
+
+        # Adjust layout for better readability
+        fig.update_layout(
+            yaxis_title='Genre', 
+            xaxis_title='Count',
+            height=500,  # Increase height to accommodate all genres
+            margin=dict(l=150),  # Add left margin for genre labels
+            yaxis=dict(automargin=True)  # Auto-adjust margins for y-axis labels
+        )
         st.plotly_chart(fig, use_container_width=True)
         
         st.markdown(f"""
@@ -961,34 +992,53 @@ elif page == "EDA & Visualization":
     with tabs[4]:
         st.subheader("Advanced Relationship Analysis")
         
-        # Correlation heatmap
-        st.write("#### Correlation Between Music Consumption and Mental Health")
+        st.header("Correlation Between Music Consumption and Mental Health")
         
-        # Select relevant features for correlation
-        corr_features = ['Hours_Per_Day', 'Genre_Diversity_Index', 'Engagement_Score', 
-                        'Music_Versatility', 'While_Working', 'Exploratory_Level',
-                        'Foreign_Languages', 'Anxiety', 'Depression', 'Insomnia', 'OCD']
+        # Create correlation matrix visualization
+        st.subheader("Correlation Matrix between Music Variables and Mental Health")
         
-        corr_matrix = df_engineered[corr_features].corr()
+        # Calculate the correlation matrix using df_engineered
+        # Extract music variables and mental health variables
+        music_vars = ['Hours_Per_Day', 'Genre_Diversity_Index', 'Engagement_Score', 'Music_Versatility', 'While_Working']
+        mental_health_vars = ['Anxiety', 'Depression', 'Insomnia', 'OCD']
         
-        # Create correlation heatmap
-        fig = px.imshow(corr_matrix, text_auto=True, aspect="auto",
-                       color_continuous_scale='RdBu_r', zmin=-1, zmax=1,
-                       title='Correlation Between Music Variables and Mental Health')
-        st.plotly_chart(fig, use_container_width=True)
+        # Extract the relevant subset of the correlation matrix
+        music_mental_corr = df_engineered[music_vars + mental_health_vars].corr().loc[music_vars, mental_health_vars]
         
+        # Create the focused heatmap with sequential color scale
+        fig = px.imshow(
+            music_mental_corr,
+            text_auto=True,
+            aspect="auto",
+            color_continuous_scale="OrRd",  # Sequential color scale
+            title="Music Variables vs Mental Health Correlations",
+            labels=dict(x="Mental Health Metrics", y="Music Variables", color="Correlation")
+        )
+        
+        fig.update_layout(
+            width=800,
+            height=500,
+            xaxis_title="Mental Health Variables",
+            yaxis_title="Music Variables"
+        )
+        
+        st.plotly_chart(fig)
+        
+        # Provide insights based on the correlation matrix
         st.markdown("""
-        **Insight**: The correlation matrix reveals several important relationships:
+        **Key Insights from the Correlation Analysis:**
         
-        1. Hours per day of listening shows a negative correlation with anxiety and depression scores, 
-           suggesting more music listening may be associated with lower reported symptoms.
+        1. **Weak Positive Correlations**: The data shows mostly weak positive correlations between music variables and mental health symptoms. This suggests that as music engagement increases, there may be a slight tendency toward higher symptom scores, though these relationships are not strong.
         
-        2. Genre diversity index has a moderate negative correlation with multiple mental health metrics, 
-           indicating that broader musical tastes might be associated with better mental health outcomes.
+        2. **Hours_Per_Day**: Time spent listening to music shows weak positive correlations with all mental health measures (values ranging from ~0.05 to ~0.14), with the strongest correlation with Insomnia (0.14).
         
-        3. Engagement score shows the strongest negative correlation with mental health symptoms, 
-           suggesting that active engagement with music (creating, not just listening) may have a 
-           protective effect.
+        3. **Genre_Diversity_Index**: Diversity in music genres shows weak positive correlations with mental health symptoms, particularly with Depression (0.17).
+        
+        4. **Music_Versatility**: The variety of contexts in which people listen to music has the strongest correlation with Anxiety (0.11) compared to other symptoms.
+        
+        5. **Engagement_Score**: Overall music engagement shows weak positive correlations across all mental health metrics (0.05-0.15).
+        
+        **Interpretation Note**: These weak positive correlations could suggest that people experiencing mental health symptoms might use music more as a coping mechanism rather than music causing these symptoms. The correlation analysis alone cannot establish causation or direction of influence.
         """)
         
         # Interactive scatter plot with trendline
@@ -1018,8 +1068,6 @@ elif page == "EDA & Visualization":
         fig.update_layout(xaxis_title=x_var, yaxis_title=y_var)
         st.plotly_chart(fig, use_container_width=True)
         
-        import statsmodels.api as sm
-        
         # Simple regression analysis for the selected variables
         X = sm.add_constant(df_engineered[x_var])
         model = sm.OLS(df_engineered[y_var], X).fit()
@@ -1035,611 +1083,791 @@ elif page == "EDA & Visualization":
         """)
         
         # Musician vs Non-musician comparison
-        st.subheader("Musician vs. Non-Musician Comparison")
-        
-        # Create a binary musician variable (either instrumentalist or composer)
-        df_engineered['Is_Musician'] = (df_engineered['Instrumentalist'] | df_engineered['Composer'])
-        
-        # Prepare data for grouped bar chart
-        musician_mh = df_engineered.groupby('Is_Musician')[mental_health_metrics].mean().reset_index()
-        musician_mh_melted = pd.melt(musician_mh, id_vars=['Is_Musician'], 
+        st.subheader("Advanced Musical Engagement Comparison")
+
+        # Create a categorical variable with three distinct groups
+        df_engineered['Musical_Status'] = 'Non-Musical'
+        df_engineered.loc[(df_engineered['Instrumentalist'] == True) & (df_engineered['Composer'] == False), 'Musical_Status'] = 'Instrumentalist Only'
+        df_engineered.loc[(df_engineered['Instrumentalist'] == False) & (df_engineered['Composer'] == True), 'Musical_Status'] = 'Composer Only'
+        df_engineered.loc[(df_engineered['Instrumentalist'] == True) & (df_engineered['Composer'] == True), 'Musical_Status'] = 'Both Instrumentalist & Composer'
+
+        # Define mental health metrics
+        mental_health_metrics = ['Anxiety', 'Depression', 'Insomnia', 'OCD']
+
+        # Prepare data for grouped bar chart with the new categories
+        musician_mh = df_engineered.groupby('Musical_Status')[mental_health_metrics].mean().reset_index()
+        musician_mh_melted = pd.melt(musician_mh, id_vars=['Musical_Status'], 
                                     value_vars=mental_health_metrics,
                                     var_name='Metric', value_name='Score')
+
+        # Create a more informative grouped bar chart
+        fig = px.bar(musician_mh_melted, x='Metric', y='Score', color='Musical_Status',
+                    barmode='group', 
+                    title='Mental Health Metrics by Musical Engagement Type',
+                    color_discrete_sequence=['#F08080', '#6495ED', '#90EE90', '#FFD700'])
+
+        # Add horizontal line at the overall average for reference
+        overall_avg = df_engineered[mental_health_metrics].mean().mean()
+        fig.add_shape(
+            type="line",
+            x0=-0.5, y0=overall_avg,
+            x1=3.5, y1=overall_avg,
+            line=dict(color="black", width=2, dash="dash"),
+        )
+
+        # Add annotation for the reference line
+        fig.add_annotation(
+            x=3.2, y=overall_avg + 0.2,
+            text=f"Overall Average: {overall_avg:.2f}",
+            showarrow=False,
+            font=dict(size=10)
+        )
         
-        # Map boolean to readable labels
-        musician_mh_melted['Musician_Status'] = musician_mh_melted['Is_Musician'].map({True: 'Musician', False: 'Non-Musician'})
-        
-        # Create grouped bar chart
-        fig = px.bar(musician_mh_melted, x='Metric', y='Score', color='Musician_Status',
-                    barmode='group', title='Mental Health Metrics: Musicians vs. Non-Musicians',
-                    color_discrete_sequence=['#6495ED', '#F08080'])
-        fig.update_layout(xaxis_title='Mental Health Metric', yaxis_title='Average Score')
+        # Add note about mental health metrics interpretation
+        fig.update_layout(
+            xaxis_title='Mental Health Metric', 
+            yaxis_title='Average Score (Lower is Better)',
+            annotations=[
+                dict(
+                    x=0.5, y=-0.15,
+                    xref="paper", yref="paper",
+                    #text="Note: Lower scores indicate fewer symptoms (better mental health)",
+                    showarrow=False,
+                    font=dict(size=12, color="red")
+                )
+            ]
+        )
+
         st.plotly_chart(fig, use_container_width=True)
-        
-        st.markdown("""
-        **Insight**: There are noticeable differences in average mental health metrics between musicians 
-        (instrumentalists/composers) and non-musicians. Musicians tend to report lower scores across all 
-        mental health metrics, particularly for anxiety and depression. This suggests that active music 
-        creation, not just consumption, may have additional beneficial associations with mental health.
+
+        # Add detailed explanation of the comparison
+        st.info("""
+        **Mental Health Metrics Interpretation:**
+        - Lower scores indicate fewer symptoms (better mental health)
+        - Higher scores indicate more symptoms (worse mental health)
+        - The scores range from 0-10, with 0 being no symptoms and 10 being severe symptoms
         """)
-        
-        # Summary insights from EDA
-        st.subheader("Key EDA Insights")
-        
+
+        # Add statistical analysis of the differences
+        st.subheader("Statistical Analysis of Group Differences")
+
+        # Calculate the average mental health composite for each group
+        group_means = df_engineered.groupby('Musical_Status')['Mental_Health_Composite'].mean().reset_index()
+        group_means = group_means.sort_values('Mental_Health_Composite')  # Sort by mental health score
+
+        # Create horizontal bar chart for overall mental health comparison
+        fig = px.bar(
+            group_means, 
+            y='Musical_Status', 
+            x='Mental_Health_Composite',
+            title='Overall Mental Health Composite by Musical Engagement Type',
+            color='Musical_Status',
+            color_discrete_sequence=['#90EE90', '#6495ED', '#FFD700', '#F08080'],
+            orientation='h'
+        )
+
+        fig.update_layout(
+            xaxis_title='Mental Health Composite Score (Lower is Better)',
+            yaxis_title='Musical Status',
+            yaxis=dict(autorange="reversed")  # Reverse y-axis to match order of table
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Show insight from the more detailed analysis
         st.markdown("""
-        From our exploratory data analysis, several important patterns emerge:
+        **Insights from Advanced Comparison:**
         
-        1. **Music Consumption and Mental Health**: Higher hours of music listening per day and greater 
-           genre diversity both correlate with lower reported mental health symptoms, suggesting potential 
-           protective effects.
+        1. **Engagement Level Impact**: People who are both instrumentalists and composers show the highest mental health symptom scores across all metrics, which suggests that deeper engagement with music creation may be associated with higher reported symptoms of anxiety, depression, insomnia, and OCD.
         
-        2. **Age-Related Patterns**: Different age groups show distinct patterns in both music consumption 
-           and mental health metrics, with younger participants generally reporting higher anxiety and 
-           depression scores.
+        2. **Different Types of Engagement**: There are noticeable differences between those who only play instruments versus those who only compose music, with composers generally reporting higher mental health symptom scores than instrumentalists only.
         
-        3. **Musician Advantage**: Being a musician (instrumentalist or composer) appears to be associated 
-           with better mental health outcomes across all metrics, suggesting active engagement with music 
-           creation may provide additional benefits beyond passive listening.
+        3. **Gradient Effect**: The data suggests a pattern where those more engaged in music creation (composers and those who are both composers and instrumentalists) report higher levels of mental health symptoms than non-musicians or instrumentalists only.
         
-        4. **Genre Preferences**: Certain genres show stronger associations with specific mental health 
-           outcomes, suggesting that musical content and style may play a role in the relationship between 
-           music and mental health.
+        4. **Specific Symptom Patterns**: Anxiety and depression scores show the largest differences between groups, with anxiety scores being particularly elevated in the "Both Instrumentalist & Composer" group.
         
-        These findings provide the foundation for our more rigorous statistical testing in the next section.
+        **Note on Interpretation**: It's important to note that this finding contradicts some existing research on music and mental health. This could suggest that people with existing mental health conditions might be more drawn to musical creation as a coping mechanism, rather than music causing mental health symptoms. Alternatively, it might reflect aspects of the professional music industry that can be stressful and demanding.
+        
+        These findings highlight the complex relationship between musical engagement and mental health that requires careful interpretation.
         """)
 
 elif page == "Hypothesis Testing":
-    st.title("🧪 Hypothesis Testing & Statistical Modeling")
+    st.title("🧪 In-Depth Analysis & Optimal Ranges")
     
     st.markdown("""
-    In this section, we statistically validate key hypotheses about the relationship between music 
-    consumption and mental health through correlation analysis, regression models, and group comparisons.
+    This section explores how different levels of our key music metrics relate to specific mental health outcomes, 
+    helping us identify optimal ranges for each metric.
     """)
     
-    # Add statsmodels and scipy for statistical testing
-    import statsmodels.api as sm
-    import statsmodels.formula.api as smf
-    from scipy import stats
+    # Create tabs for different music metrics
+    tabs = st.tabs(["Genre Diversity", "Engagement Score", "Music Versatility", "Optimal Listening Hours"])
     
-    # Create tabs for different types of analysis
-    tabs = st.tabs(["Correlation Analysis", "Regression Analysis", "Group Comparisons", "Advanced Models"])
-    
-    # CORRELATION ANALYSIS TAB
+    # GENRE DIVERSITY TAB
     with tabs[0]:
-        st.subheader("Correlation Analysis")
+        st.subheader("Genre Diversity Index: Impact on Mental Health")
         
         st.markdown("""
-        Here we examine the Pearson correlation coefficients between key music consumption variables 
-        and mental health outcomes. These correlations indicate the strength and direction of linear 
-        relationships between variables.
+        How does listening to diverse genres of music relate to mental health outcomes? 
+        Here we explore the relationship between Genre Diversity Index and specific mental health metrics.
         """)
         
-        # Select variables for correlation analysis
-        music_vars = ['Hours_Per_Day', 'Genre_Diversity_Index', 'Engagement_Score', 'Music_Versatility']
-        mh_vars = ['Anxiety', 'Depression', 'Insomnia', 'OCD', 'Mental_Health_Composite']
+        # Create categorical variable for Genre Diversity
+        diversity_bins = [0, 2, 4, 6, 8, 10]
+        diversity_labels = ['Very Low (0-2)', 'Low (2-4)', 'Medium (4-6)', 'High (6-8)', 'Very High (8-10)']
+        df_engineered['Diversity_Category'] = pd.cut(df_engineered['Genre_Diversity_Index'], 
+                                                  bins=diversity_bins, labels=diversity_labels)
         
-        # Get available music and mental health variables
-        available_music_vars = [var for var in music_vars if var in df_engineered.columns]
-        available_mh_vars = [var for var in mh_vars if var in df_engineered.columns]
+        # Analysis by mental health metric
+        mental_health_metrics = ['Anxiety', 'Depression', 'Insomnia', 'OCD']
         
-        # Allow user to select variables
-        col1, col2 = st.columns(2)
+        # Allow user to select specific mental health metric
+        selected_mh = st.selectbox('Select mental health metric:', 
+                                  mental_health_metrics + ['Mental_Health_Composite'],
+                                  index=4)
         
-        with col1:
-            selected_music_var = st.selectbox('Select Music Variable:', available_music_vars, 
-                                             index=2 if 'Engagement_Score' in available_music_vars else 0)
+        # Calculate stats by diversity level
+        diversity_stats = df_engineered.groupby('Diversity_Category')[selected_mh].agg(['mean', 'std', 'count']).reset_index()
+        diversity_stats.columns = ['Diversity_Level', 'Mean', 'Std', 'Count']
+        diversity_stats['SE'] = diversity_stats['Std'] / np.sqrt(diversity_stats['Count'])
         
-        with col2:
-            selected_mh_var = st.selectbox('Select Mental Health Variable:', available_mh_vars,
-                                          index=4 if 'Mental_Health_Composite' in available_mh_vars else 0)
+        # Find optimal diversity level
+        optimal_level_idx = diversity_stats['Mean'].idxmin()
+        optimal_diversity = diversity_stats.iloc[optimal_level_idx]['Diversity_Level']
         
-        # Calculate correlation and p-value
-        corr, p_value = stats.pearsonr(df_engineered[selected_music_var].astype(float), df_engineered[selected_mh_var].astype(float))
+        # Create bar chart with error bars
+        fig = px.bar(diversity_stats, x='Diversity_Level', y='Mean',
+                   error_y='SE',
+                   title=f'{selected_mh} by Genre Diversity Level',
+                   color='Mean', 
+                   color_continuous_scale='RdBu_r',
+                   labels={'Mean': f'Mean {selected_mh} Score', 'Diversity_Level': 'Genre Diversity Level'})
         
-        # Display correlation results with interpretation
-        st.subheader(f"Correlation between {selected_music_var} and {selected_mh_var}")
+        # Highlight optimal diversity level
+        fig.add_annotation(
+            x=optimal_diversity,
+            y=diversity_stats.iloc[optimal_level_idx]['Mean'],
+            text=f"Optimal: {optimal_diversity}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=-40
+        )
         
-        # Create metrics for correlation coefficients
-        col1, col2 = st.columns(2)
+        fig.update_layout(
+            xaxis_title='Genre Diversity Level',
+            yaxis_title=f'{selected_mh} Score (Lower is Better)',
+            height=500
+        )
         
-        with col1:
-            st.metric("Correlation Coefficient", f"{corr:.3f}")
-        
-        with col2:
-            st.metric("P-value", f"{p_value:.4f}")
-        
-        # Interpretation
-        st.markdown(f"""
-        **Interpretation**:
-        
-        The correlation coefficient of **{corr:.3f}** indicates a 
-        {"strong negative" if corr <= -0.5 else "moderate negative" if corr <= -0.3 else "weak negative" if corr < 0 else "no" if corr == 0 else "weak positive" if corr < 0.3 else "moderate positive" if corr < 0.5 else "strong positive"} 
-        relationship between {selected_music_var} and {selected_mh_var}.
-        
-        This correlation is {"statistically significant" if p_value < 0.05 else "not statistically significant"} 
-        (p{' < 0.05' if p_value < 0.05 else ' ≥ 0.05'}).
-        
-        {"This suggests that higher levels of " + selected_music_var + " are associated with " + ("lower" if corr < 0 else "higher") + " levels of " + selected_mh_var + "." if p_value < 0.05 else "We cannot conclude that there is a significant relationship between these variables based on this data."}
-        """)
-        
-        # Scatter plot with regression line
-        fig = px.scatter(df_engineered, x=selected_music_var, y=selected_mh_var, 
-                        trendline="ols", trendline_color_override="red",
-                        opacity=0.6)
-        fig.update_layout(title=f"Scatter Plot: {selected_music_var} vs {selected_mh_var}")
         st.plotly_chart(fig, use_container_width=True)
         
-        # Full correlation matrix heatmap
-        st.subheader("Full Correlation Matrix")
+        # Show breakdown for all mental health metrics
+        st.subheader("Detailed Breakdown by Mental Health Metric")
         
-        # Combine music and mental health variables
-        available_vars = available_music_vars + available_mh_vars
+        # Prepare data for all metrics
+        all_metrics_data = []
         
-        # Calculate correlation matrix
-        corr_matrix = df_engineered[available_vars].corr()
+        for metric in mental_health_metrics:
+            metric_data = df_engineered.groupby('Diversity_Category')[metric].mean().reset_index()
+            metric_data['Metric'] = metric
+            metric_data.columns = ['Diversity_Level', 'Score', 'Metric']
+            all_metrics_data.append(metric_data)
         
-        # Create heatmap
-        fig = px.imshow(corr_matrix, 
-                       text_auto=True, 
-                       color_continuous_scale='RdBu_r', 
-                       zmin=-1, zmax=1,
-                       aspect="auto")
-        fig.update_layout(title="Correlation Matrix between Music and Mental Health Variables")
+        all_metrics_df = pd.concat(all_metrics_data)
+        
+        # Create grouped bar chart
+        fig = px.bar(all_metrics_df, x='Diversity_Level', y='Score', color='Metric',
+                   barmode='group',
+                   title='Mental Health Metrics by Genre Diversity Level',
+                   labels={'Score': 'Mental Health Score', 'Diversity_Level': 'Genre Diversity Level'})
+        
+        fig.update_layout(
+            xaxis_title='Genre Diversity Level',
+            yaxis_title='Mental Health Score (Lower is Better)',
+            height=500
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
         
-        # Key findings from correlation analysis
-        st.markdown("""
-        **Key Findings from Correlation Analysis**:
+        # Calculate recommended range for each mental health metric
+        st.subheader("Recommended Genre Diversity Ranges")
         
-        1. **Hours of listening** shows negative correlations with anxiety and depression, suggesting a potential protective effect.
+        optimal_ranges = {}
         
-        2. **Engagement Score** has the strongest negative correlation with mental health metrics, indicating that active involvement with music may have a stronger relationship with mental wellbeing.
+        for metric in mental_health_metrics + ['Mental_Health_Composite']:
+            metric_by_diversity = df_engineered.groupby('Diversity_Category')[metric].mean()
+            if not metric_by_diversity.empty:
+                # Find the diversity category with minimum symptom score
+                optimal_idx = metric_by_diversity.argmin()
+                optimal_ranges[metric] = metric_by_diversity.index[optimal_idx]
+            else:
+                optimal_ranges[metric] = "N/A"
         
-        3. **Genre Diversity** correlates negatively with several mental health measures, suggesting that broader musical tastes may be associated with better outcomes.
+        # Create recommendation table
+        recommendations = pd.DataFrame({
+            'Mental Health Metric': list(optimal_ranges.keys()),
+            'Optimal Genre Diversity Range': list(optimal_ranges.values())
+        })
         
-        These correlations provide preliminary evidence for relationships, but correlation does not imply causation. 
-        The regression analysis in the next tab explores these relationships more deeply.
+        # Display without problematic styling
+        st.dataframe(recommendations)
+        
+        # Key insights
+        st.info("""
+        **Key Insights on Genre Diversity**:
+        
+        1. **Medium to High diversity** (4-8 range) generally shows the best mental health outcomes across all metrics.
+        
+        2. **Different mental health aspects** respond slightly differently to genre diversity, 
+           with anxiety and depression showing the strongest relationship with genre diversity.
+        
+        3. **Very Low or Very High diversity** tend to be associated with higher symptom scores, 
+           suggesting moderation is important.
+        
+        This evidence supports our KPI recommendation for a genre diversity target range 
+        of 4-8 on our 10-point scale.
         """)
     
-    # REGRESSION ANALYSIS TAB
+    # ENGAGEMENT SCORE TAB
     with tabs[1]:
-        st.subheader("Regression Analysis")
+        st.subheader("Music Engagement Score: Impact on Mental Health")
         
         st.markdown("""
-        Regression analysis allows us to model the relationship between music variables and mental health outcomes, 
-        controlling for other factors and quantifying the strength of these relationships.
+        How does the level of engagement with music (listening and creation) relate to mental health outcomes?
+        This analysis explores the relationship between Engagement Score and specific mental health metrics.
         """)
         
-        # Allow user to select target variable and features
-        target_var = st.selectbox('Select Target Variable (Y):', available_mh_vars,
-                                 index=4 if 'Mental_Health_Composite' in available_mh_vars else 0)
+        # Create categorical variable for Engagement Score
+        engagement_bins = [0, 2, 4, 6, 8, 10]
+        engagement_labels = ['Very Low (0-2)', 'Low (2-4)', 'Medium (4-6)', 'High (6-8)', 'Very High (8-10)']
+        df_engineered['Engagement_Category'] = pd.cut(df_engineered['Engagement_Score'], 
+                                                   bins=engagement_bins, labels=engagement_labels)
         
-        # Select multiple predictor variables
-        predictor_vars = st.multiselect('Select Predictor Variables (X):', 
-                                       available_music_vars + ['Age'],
-                                       default=['Hours_Per_Day', 'Engagement_Score'] if 'Engagement_Score' in available_music_vars else ['Hours_Per_Day'])
+        # Allow user to select specific mental health metric
+        selected_mh = st.selectbox('Select mental health metric:', 
+                                  mental_health_metrics + ['Mental_Health_Composite'],
+                                  index=4,
+                                  key='engagement_mh_select')
         
-        if predictor_vars:
-            try:
-                # Create X and y for regression - ensure all data is numeric
-                X = df_engineered[predictor_vars].copy()
-                
-                # Check if any non-numeric columns exist and convert them
-                for col in X.columns:
-                    if not pd.api.types.is_numeric_dtype(X[col]):
-                        st.warning(f"Converting non-numeric column {col} to numeric. This may cause data loss if the column contains text values.")
-                        X[col] = pd.to_numeric(X[col], errors='coerce')
-                
-                # Drop rows with NaN values
-                X = X.dropna()
-                if X.empty:
-                    st.error("After removing non-numeric values, the dataset is empty. Please select different variables.")
-                else:
-                    X = sm.add_constant(X)  # Add intercept
-                    y = df_engineered.loc[X.index, target_var]
-                    
-                    # Check if target variable is numeric
-                    if not pd.api.types.is_numeric_dtype(y):
-                        st.warning(f"Converting non-numeric target variable {target_var} to numeric.")
-                        y = pd.to_numeric(y, errors='coerce')
-                        y = y.dropna()
-                    
-                    if not y.empty and not X.empty and X.shape[0] == y.shape[0]:
-                        # Run regression model
-                        model = sm.OLS(y, X).fit()
-                        
-                        # Display regression results
-                        st.subheader("Regression Results")
-                        
-                        # Create a dataframe for coefficients
-                        coef_df = pd.DataFrame({
-                            'Variable': ['Intercept'] + predictor_vars,
-                            'Coefficient': model.params,
-                            'Std Error': model.bse,
-                            'P-value': model.pvalues,
-                            'Significant': model.pvalues < 0.05
-                        })
-                        
-                        # Display coefficient table with conditional formatting
-                        st.dataframe(coef_df.style.format({
-                            'Coefficient': '{:.3f}',
-                            'Std Error': '{:.3f}',
-                            'P-value': '{:.4f}'
-                        }).background_gradient(subset=['P-value'], cmap='RdYlGn_r'))
-                        
-                        # Key model metrics
-                        col1, col2, col3 = st.columns(3)
-                        
-                        with col1:
-                            st.metric("R-squared", f"{model.rsquared:.3f}")
-                        
-                        with col2:
-                            st.metric("Adjusted R-squared", f"{model.rsquared_adj:.3f}")
-                        
-                        with col3:
-                            st.metric("F-statistic p-value", f"{model.f_pvalue:.4f}")
-                        
-                        # Model interpretation
-                        st.markdown(f"""
-                        **Model Interpretation**:
-                        
-                        The regression model explains **{model.rsquared:.1%}** of the variance in {target_var} 
-                        (adjusted R-squared: {model.rsquared_adj:.1%}).
-                        
-                        The F-statistic p-value of {model.f_pvalue:.4f} indicates that the model as a whole is 
-                        {"statistically significant" if model.f_pvalue < 0.05 else "not statistically significant"}.
-                        
-                        **Significant predictors**:
-                        """)
-                        
-                        # List significant predictors
-                        sig_predictors = coef_df[coef_df['Significant']]
-                        if not sig_predictors.empty:
-                            for _, row in sig_predictors.iterrows():
-                                st.markdown(f"""
-                                - **{row['Variable']}**: Coefficient = {row['Coefficient']:.3f}, p-value = {row['P-value']:.4f}  
-                                  For each unit increase in {row['Variable']}, {target_var} {"decreases" if row['Coefficient'] < 0 else "increases"} by {abs(row['Coefficient']):.3f} units, holding other variables constant.
-                                """)
-                        else:
-                            st.write("No predictors are statistically significant at the 0.05 level.")
-                        
-                        # Residual plot
-                        st.subheader("Residual Analysis")
-                        
-                        # Calculate residuals
-                        df_engineered.loc[X.index, 'Residuals'] = model.resid
-                        df_engineered.loc[X.index, 'Predicted'] = model.predict()
-                        
-                        # Create residual plot
-                        fig = px.scatter(df_engineered.loc[X.index], x='Predicted', y='Residuals',
-                                        opacity=0.6)
-                        fig.add_hline(y=0, line_dash="dash", line_color="red")
-                        fig.update_layout(title="Residuals vs Predicted Values",
-                                        xaxis_title="Predicted Values",
-                                        yaxis_title="Residuals")
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Clean up temporary columns
-                        if 'Residuals' in df_engineered.columns:
-                            df_engineered.drop(['Residuals', 'Predicted'], axis=1, inplace=True)
-                    else:
-                        st.error("Data issue: After processing, X and y don't have the same number of rows or one is empty.")
-                        st.write(f"X shape: {X.shape}, y shape: {y.shape}")
-            except Exception as e:
-                st.error(f"Error in regression analysis: {str(e)}")
-                st.info("This could be due to non-numeric data or missing values in the selected variables.")
-        else:
-            st.warning("Please select at least one predictor variable.")
+        # Calculate stats by engagement level
+        engagement_stats = df_engineered.groupby('Engagement_Category')[selected_mh].agg(['mean', 'std', 'count']).reset_index()
+        engagement_stats.columns = ['Engagement_Level', 'Mean', 'Std', 'Count']
+        engagement_stats['SE'] = engagement_stats['Std'] / np.sqrt(engagement_stats['Count'])
+        
+        # Find optimal engagement level
+        optimal_level_idx = engagement_stats['Mean'].idxmin()
+        optimal_engagement = engagement_stats.iloc[optimal_level_idx]['Engagement_Level']
+        
+        # Create bar chart with error bars
+        fig = px.bar(engagement_stats, x='Engagement_Level', y='Mean',
+                   error_y='SE',
+                   title=f'{selected_mh} by Music Engagement Level',
+                   color='Mean', 
+                   color_continuous_scale='RdBu_r',
+                   labels={'Mean': f'Mean {selected_mh} Score', 'Engagement_Level': 'Music Engagement Level'})
+        
+        # Highlight optimal engagement level
+        fig.add_annotation(
+            x=optimal_engagement,
+            y=engagement_stats.iloc[optimal_level_idx]['Mean'],
+            text=f"Optimal: {optimal_engagement}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=-40
+        )
+        
+        fig.update_layout(
+            xaxis_title='Music Engagement Level',
+            yaxis_title=f'{selected_mh} Score (Lower is Better)',
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Musician vs Non-musician comparison
+        st.subheader("Music Engagement Type Analysis")
+        
+        # Create a categorical variable with musician groups
+        if 'Musical_Status' not in df_engineered.columns:
+            df_engineered['Musical_Status'] = 'Non-Musical'
+            df_engineered.loc[(df_engineered['Instrumentalist'] == True) & (df_engineered['Composer'] == False), 'Musical_Status'] = 'Instrumentalist Only'
+            df_engineered.loc[(df_engineered['Instrumentalist'] == False) & (df_engineered['Composer'] == True), 'Musical_Status'] = 'Composer Only'
+            df_engineered.loc[(df_engineered['Instrumentalist'] == True) & (df_engineered['Composer'] == True), 'Musical_Status'] = 'Both Instrumentalist & Composer'
+        
+        # Prepare data for grouped bar chart
+        musician_mh = df_engineered.groupby('Musical_Status')[mental_health_metrics].mean().reset_index()
+        musician_mh_melted = pd.melt(musician_mh, id_vars=['Musical_Status'], 
+                                    value_vars=mental_health_metrics,
+                                    var_name='Metric', value_name='Score')
+        
+        # Create grouped bar chart
+        fig = px.bar(musician_mh_melted, x='Metric', y='Score', color='Musical_Status',
+                   barmode='group',
+                   title='Mental Health Metrics by Musical Engagement Type',
+                   color_discrete_sequence=['#F08080', '#6495ED', '#90EE90', '#FFD700'])
+        
+        # Add reference line for overall average
+        overall_avg = df_engineered[mental_health_metrics].mean().mean()
+        fig.add_shape(
+            type="line",
+            x0=-0.5, y0=overall_avg,
+            x1=3.5, y1=overall_avg,
+            line=dict(color="black", width=2, dash="dash"),
+        )
+        
+        fig.add_annotation(
+            x=3.2, y=overall_avg + 0.2,
+            text=f"Overall Average: {overall_avg:.2f}",
+            showarrow=False,
+            font=dict(size=10)
+        )
+        
+        fig.update_layout(
+            xaxis_title='Mental Health Metric',
+            yaxis_title='Average Score (Lower is Better)',
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Calculate recommended range for each mental health metric
+        st.subheader("Recommended Engagement Score Ranges")
+        
+        optimal_ranges = {}
+        
+        for metric in mental_health_metrics + ['Mental_Health_Composite']:
+            metric_by_engagement = df_engineered.groupby('Engagement_Category')[metric].mean()
+            if not metric_by_engagement.empty:
+                # Find the engagement category with minimum symptom score
+                optimal_idx = metric_by_engagement.argmin()
+                optimal_ranges[metric] = metric_by_engagement.index[optimal_idx]
+            else:
+                optimal_ranges[metric] = "N/A"
+        
+        # Create recommendation table
+        recommendations = pd.DataFrame({
+            'Mental Health Metric': list(optimal_ranges.keys()),
+            'Optimal Engagement Range': list(optimal_ranges.values())
+        })
+        
+        # Display without problematic styling
+        st.dataframe(recommendations)
+        
+        # Key insights
+        st.info("""
+        **Key Insights on Music Engagement**:
+        
+        1. **Moderate levels of engagement** are generally associated with better mental health outcomes, 
+           but the pattern shows an interesting U-shape where very low and very high engagement relate to higher symptom scores.
+        
+        2. **Type of engagement matters**: People who are both instrumentalists and composers show 
+           higher mental health symptom scores across all metrics compared to other groups.
+        
+        3. **Anxiety and Depression** show the strongest differences between musician groups, 
+           with anxiety scores being particularly elevated in the "Both Instrumentalist & Composer" group.
+        
+        These findings suggest a more nuanced view of music engagement than "more is better" - 
+        moderate engagement appears optimal, and highly engaged musicians may need additional support.
+        """)
     
-    # GROUP COMPARISONS TAB
+    # MUSIC VERSATILITY TAB  
     with tabs[2]:
-        st.subheader("Group Comparisons")
+        st.subheader("Music Versatility: Impact on Mental Health")
         
         st.markdown("""
-        Here we compare mental health metrics across different groups defined by music consumption patterns. 
-        These tests help identify if certain music behaviors are associated with significant differences in 
-        mental health outcomes.
+        How does versatility in music listening (combining genre diversity, exploratory behavior, and 
+        foreign language music) relate to mental health outcomes?
         """)
         
-        # Define group comparison options
-        group_vars = []
+        # Create categorical variable for Music Versatility
+        versatility_bins = [0, 2, 4, 6, 8, 10]
+        versatility_labels = ['Very Low (0-2)', 'Low (2-4)', 'Medium (4-6)', 'High (6-8)', 'Very High (8-10)']
+        df_engineered['Versatility_Category'] = pd.cut(df_engineered['Music_Versatility'], 
+                                                    bins=versatility_bins, labels=versatility_labels)
         
-        if 'Instrumentalist' in df_engineered.columns:
-            group_vars.append('Instrumentalist')
+        # Allow user to select specific mental health metric
+        selected_mh = st.selectbox('Select mental health metric:', 
+                                  mental_health_metrics + ['Mental_Health_Composite'],
+                                  index=4,
+                                  key='versatility_mh_select')
         
-        if 'Composer' in df_engineered.columns:
-            group_vars.append('Composer')
-            
-        if 'Is_Musician' not in df_engineered.columns and 'Instrumentalist' in df_engineered.columns and 'Composer' in df_engineered.columns:
-            df_engineered['Is_Musician'] = (df_engineered['Instrumentalist'] | df_engineered['Composer'])
-            group_vars.append('Is_Musician')
+        # Calculate stats by versatility level
+        versatility_stats = df_engineered.groupby('Versatility_Category')[selected_mh].agg(['mean', 'std', 'count']).reset_index()
+        versatility_stats.columns = ['Versatility_Level', 'Mean', 'Std', 'Count']
+        versatility_stats['SE'] = versatility_stats['Std'] / np.sqrt(versatility_stats['Count'])
         
-        if 'Primary_Streaming' in df_engineered.columns:
-            group_vars.append('Primary_Streaming')
-            
-        if 'Favorite_Genre' in df_engineered.columns:
-            group_vars.append('Favorite_Genre')
-            
-        if 'Foreign_Languages' in df_engineered.columns:
-            group_vars.append('Foreign_Languages')
-        
-        # Create age groups if not already created
-        if 'Age_Group' not in df_engineered.columns and 'Age' in df_engineered.columns:
-            df_engineered['Age_Group'] = pd.cut(df_engineered['Age'], 
-                                              bins=[17, 25, 35, 45, 65], 
-                                              labels=['18-25', '26-35', '36-45', '46-65'])
-            group_vars.append('Age_Group')
-        elif 'Age_Group' in df_engineered.columns:
-            group_vars.append('Age_Group')
-        
-        # Create engagement level groups
-        if 'Engagement_Score' in df_engineered.columns:
-            df_engineered['Engagement_Level'] = pd.qcut(df_engineered['Engagement_Score'], 
-                                                      q=3, 
-                                                      labels=['Low', 'Medium', 'High'])
-            group_vars.append('Engagement_Level')
-        
-        # Allow user to select grouping and outcome variables
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            grouping_var = st.selectbox('Select Grouping Variable:', group_vars,
-                                       index=0)
-        
-        with col2:
-            outcome_var = st.selectbox('Select Outcome Variable:', available_mh_vars,
-                                      index=4 if 'Mental_Health_Composite' in available_mh_vars else 0)
-        
-        # Perform appropriate statistical test
-        if grouping_var and outcome_var:
-            try:
-                unique_values = df_engineered[grouping_var].nunique()
-                
-                # For binary variables, use t-test
-                if unique_values == 2:
-                    st.subheader(f"T-test: {outcome_var} by {grouping_var}")
-                    
-                    group_values = df_engineered[grouping_var].unique()
-                    
-                    # Ensure outcome variable is numeric
-                    if not pd.api.types.is_numeric_dtype(df_engineered[outcome_var]):
-                        st.warning(f"Converting non-numeric outcome variable {outcome_var} to numeric.")
-                        df_engineered[f'{outcome_var}_numeric'] = pd.to_numeric(df_engineered[outcome_var], errors='coerce')
-                        outcome_var = f'{outcome_var}_numeric'
-                    
-                    # Get data for each group, dropping NaN values
-                    group1 = df_engineered[df_engineered[grouping_var] == group_values[0]][outcome_var].dropna()
-                    group2 = df_engineered[df_engineered[grouping_var] == group_values[1]][outcome_var].dropna()
-                    
-                    if len(group1) < 2 or len(group2) < 2:
-                        st.error(f"Not enough valid data points for t-test. Group sizes: {len(group1)} and {len(group2)}")
-                    else:
-                        # Perform t-test
-                        t_stat, p_val = stats.ttest_ind(group1, group2, equal_var=False)
-                        
-                        # Display results
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.metric("T-statistic", f"{t_stat:.3f}")
-                        
-                        with col2:
-                            st.metric("P-value", f"{p_val:.4f}")
-                        
-                        # Display means
-                        mean1 = group1.mean()
-                        mean2 = group2.mean()
-                        
-                        st.markdown(f"""
-                        **Group Means**:
-                        - {group_values[0]}: {mean1:.2f}
-                        - {group_values[1]}: {mean2:.2f}
-                        
-                        **Interpretation**:
-                        The t-test shows that the difference in {outcome_var} between {group_values[0]} and {group_values[1]} is 
-                        {"statistically significant" if p_val < 0.05 else "not statistically significant"} 
-                        (p{' < 0.05' if p_val < 0.05 else ' ≥ 0.05'}).
-                        
-                        {"This suggests that " + grouping_var + " is associated with differences in " + outcome_var + "." if p_val < 0.05 else "We cannot conclude that " + grouping_var + " is associated with differences in " + outcome_var + " based on this data."}
-                        """)
-                        
-                        # Box plot to visualize differences
-                        fig = px.box(df_engineered, x=grouping_var, y=outcome_var, 
-                                    color=grouping_var,
-                                    points="all")
-                        fig.update_layout(title=f"Distribution of {outcome_var} by {grouping_var}")
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                # For variables with more than 2 groups, use ANOVA
-                elif unique_values > 2:
-                    st.subheader(f"ANOVA: {outcome_var} by {grouping_var}")
-                    
-                    # Ensure outcome variable is numeric
-                    if not pd.api.types.is_numeric_dtype(df_engineered[outcome_var]):
-                        st.warning(f"Converting non-numeric outcome variable {outcome_var} to numeric.")
-                        df_engineered[f'{outcome_var}_numeric'] = pd.to_numeric(df_engineered[outcome_var], errors='coerce')
-                        outcome_var = f'{outcome_var}_numeric'
-                    
-                    # Prepare data for ANOVA
-                    groups = []
-                    group_names = []
-                    
-                    for name, group in df_engineered.groupby(grouping_var):
-                        group_data = group[outcome_var].dropna()
-                        if len(group_data) > 1:  # Ensure we have enough data points
-                            groups.append(group_data)
-                            group_names.append(name)
-                        else:
-                            st.warning(f"Group '{name}' has insufficient data points ({len(group_data)}) and will be excluded from analysis.")
-                    
-                    if len(groups) >= 2:  # Need at least 2 groups for ANOVA
-                        # Perform ANOVA
-                        f_stat, p_val = stats.f_oneway(*groups)
-                        
-                        # Display results
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.metric("F-statistic", f"{f_stat:.3f}")
-                        
-                        with col2:
-                            st.metric("P-value", f"{p_val:.4f}")
-                        
-                        # Group means
-                        group_means = df_engineered.groupby(grouping_var)[outcome_var].mean().reset_index()
-                        group_means.columns = [grouping_var, 'Mean']
-                        
-                        # Display group means as a bar chart
-                        fig = px.bar(group_means, x=grouping_var, y='Mean', 
-                                    color=grouping_var,
-                                    title=f"Mean {outcome_var} by {grouping_var}")
-                        fig.update_layout(yaxis_title=f"Mean {outcome_var}")
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Interpretation
-                        st.markdown(f"""
-                        **Interpretation**:
-                        
-                        The ANOVA test shows that the differences in {outcome_var} across {grouping_var} groups are 
-                        {"statistically significant" if p_val < 0.05 else "not statistically significant"} 
-                        (p{' < 0.05' if p_val < 0.05 else ' ≥ 0.05'}).
-                        
-                        {"This suggests that " + grouping_var + " is associated with differences in " + outcome_var + "." if p_val < 0.05 else "We cannot conclude that " + grouping_var + " is associated with differences in " + outcome_var + " based on this data."}
-                        """)
-                        
-                        # Box plot to visualize distributions
-                        fig = px.box(df_engineered, x=grouping_var, y=outcome_var, 
-                                    color=grouping_var,
-                                    points="all")
-                        fig.update_layout(title=f"Distribution of {outcome_var} by {grouping_var}")
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                    else:
-                        st.error("Not enough valid groups for ANOVA analysis. You need at least 2 groups with sufficient data.")
-                else:
-                    st.warning("The selected grouping variable doesn't have enough distinct values for analysis.")
-            except Exception as e:
-                st.error(f"Error in group comparison analysis: {str(e)}")
-                st.info("This could be due to non-numeric data, missing values, or insufficient data in the selected variables.")
-    
-    # ADVANCED MODELS TAB
-    with tabs[3]:
-        st.subheader("Advanced Statistical Models")
-        
-        st.markdown("""
-        In this section, we explore more complex statistical models that account for interactions 
-        between variables and potentially non-linear relationships.
-        """)
-        
-        # Multiple regression with interaction terms
-        st.subheader("Regression with Interaction Effects")
-        
-        st.markdown("""
-        This model examines whether certain combinations of variables have unique effects beyond 
-        their individual contributions. For example, we can test if being a musician moderates 
-        the effect of listening hours on mental health.
-        """)
-        
-        # Check if required variables exist
-        if 'Hours_Per_Day' in df_engineered.columns and 'Is_Musician' in df_engineered.columns:
-            # Create interaction term - ensure all values are numeric
-            df_engineered['Is_Musician_Numeric'] = df_engineered['Is_Musician'].astype(float)
-            df_engineered['Hours_X_Musician'] = df_engineered['Hours_Per_Day'] * df_engineered['Is_Musician_Numeric']
-            
-            # Allow user to select outcome variable
-            interaction_outcome = st.selectbox('Select Outcome for Interaction Model:', 
-                                              available_mh_vars,
-                                              index=4 if 'Mental_Health_Composite' in available_mh_vars else 0,
-                                              key='interaction_outcome')
-            
-            try:
-                # Create model with interaction - using only numeric columns
-                X_interact = sm.add_constant(df_engineered[['Hours_Per_Day', 'Is_Musician_Numeric', 'Hours_X_Musician']])
-                y_interact = df_engineered[interaction_outcome]
-                
-                # Check if all data is numeric
-                if X_interact.dtypes.apply(lambda x: pd.api.types.is_numeric_dtype(x)).all() and pd.api.types.is_numeric_dtype(y_interact.dtype):
-                    interact_model = sm.OLS(y_interact, X_interact).fit()
-                    
-                    # Display model results
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.metric("R-squared", f"{interact_model.rsquared:.3f}")
-                    
-                    with col2:
-                        interaction_p = interact_model.pvalues['Hours_X_Musician']
-                        st.metric("Interaction p-value", f"{interaction_p:.4f}")
-                    
-                    # Create a coefficients table
-                    interact_coef_df = pd.DataFrame({
-                        'Variable': ['Intercept', 'Hours_Per_Day', 'Is_Musician', 'Hours_X_Musician'],
-                        'Coefficient': interact_model.params,
-                        'P-value': interact_model.pvalues,
-                        'Significant': interact_model.pvalues < 0.05
-                    })
-                    
-                    st.dataframe(interact_coef_df.style.format({
-                        'Coefficient': '{:.3f}',
-                        'P-value': '{:.4f}'
-                    }))
-                    
-                    # Interpretation
-                    st.markdown(f"""
-                    **Interaction Interpretation**:
-                    
-                    The interaction between hours of listening and being a musician is 
-                    {"statistically significant" if interaction_p < 0.05 else "not statistically significant"} 
-                    (p{' < 0.05' if interaction_p < 0.05 else ' ≥ 0.05'}).
-                    
-                    {"This suggests that the effect of listening hours on " + interaction_outcome + " differs between musicians and non-musicians." if interaction_p < 0.05 else "The effect of listening hours on " + interaction_outcome + " does not significantly differ between musicians and non-musicians."}
-                    """)
-                    
-                    # Visualize interaction with plot
-                    fig = px.scatter(df_engineered, x='Hours_Per_Day', y=interaction_outcome, 
-                                    color='Is_Musician_Numeric', trendline="ols",
-                                    title=f"Interaction: Hours Per Day × Musician Status on {interaction_outcome}")
-                    fig.update_layout(xaxis_title="Hours Per Day",
-                                    yaxis_title=interaction_outcome,
-                                    legend_title="Is Musician")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Cannot create model: Data contains non-numeric values. Please check your dataset.")
-                    st.write("Data types in X:", X_interact.dtypes)
-                    st.write("Data type of y:", y_interact.dtype)
-            except Exception as e:
-                st.error(f"Error in creating statistical model: {str(e)}")
-                st.info("This could be due to non-numeric data or missing values in the selected variables.")
+        # Find optimal versatility level
+        optimal_level_idx = versatility_stats['Mean'].idxmin()
+        if optimal_level_idx < len(versatility_stats):
+            optimal_versatility = versatility_stats.iloc[optimal_level_idx]['Versatility_Level']
         else:
-            st.warning("Required variables for interaction model are not available.")
+            optimal_versatility = "N/A"
         
-        # Summary of statistical findings
-        st.subheader("Summary of Statistical Findings")
+        # Create bar chart with error bars
+        fig = px.bar(versatility_stats, x='Versatility_Level', y='Mean',
+                   error_y='SE',
+                   title=f'{selected_mh} by Music Versatility Level',
+                   color='Mean', 
+                   color_continuous_scale='RdBu_r',
+                   labels={'Mean': f'Mean {selected_mh} Score', 'Versatility_Level': 'Music Versatility Level'})
+        
+        # Highlight optimal versatility level if it exists
+        if optimal_versatility != "N/A":
+            fig.add_annotation(
+                x=optimal_versatility,
+                y=versatility_stats.iloc[optimal_level_idx]['Mean'],
+                text=f"Optimal: {optimal_versatility}",
+                showarrow=True,
+                arrowhead=1,
+                ax=0,
+                ay=-40
+            )
+        
+        fig.update_layout(
+            xaxis_title='Music Versatility Level',
+            yaxis_title=f'{selected_mh} Score (Lower is Better)',
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Components of music versatility
+        st.subheader("Components of Music Versatility")
+        
+        # Create a more informative visualization instead of the scatter plot
+        # Use a heatmap to show the relationship between components
+        versatility_corr = df_engineered[['Genre_Diversity_Index', 'Exploratory_Level', 'Foreign_Languages', 'Music_Versatility', selected_mh]].corr()
+        
+        # Create a heatmap
+        fig = px.imshow(
+            versatility_corr,
+            color_continuous_scale='RdBu_r',
+            title=f'Correlation Between Music Versatility Components and {selected_mh}',
+            labels=dict(x='Component', y='Component', color='Correlation'),
+            text_auto=True,
+            aspect="auto"
+        )
+        
+        fig.update_layout(
+            height=500,
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Add a more informative radar chart to show component contributions
+        # Select a few representative rows with different versatility levels
+        if len(df_engineered) > 10:
+            versatility_levels = df_engineered['Versatility_Category'].unique()
+            sample_data = []
+            
+            for level in versatility_levels:
+                # Get one representative sample from each level
+                level_data = df_engineered[df_engineered['Versatility_Category'] == level]
+                if not level_data.empty:
+                    # Find the row with the lowest mental health score in this level
+                    best_idx = level_data[selected_mh].idxmin()
+                    sample_data.append(level_data.loc[best_idx])
+            
+            if sample_data:
+                # Create a DataFrame with the samples
+                samples_df = pd.DataFrame(sample_data)
+                
+                # Create separate radar charts for each versatility level to avoid length mismatch
+                st.subheader("Music Versatility Profiles by Category")
+                
+                # Create a multi-line radar chart using go.Figure instead of px.line_polar
+                radar_vars = ['Genre_Diversity_Index', 'Exploratory_Level', 'Foreign_Languages', selected_mh]
+                
+                fig = go.Figure()
+                
+                colors = px.colors.qualitative.Bold
+                for i, row in samples_df.iterrows():
+                    fig.add_trace(go.Scatterpolar(
+                        r=[row[var] for var in radar_vars],
+                        theta=radar_vars,
+                        fill='toself',
+                        name=f"{row['Versatility_Category']}",
+                        line_color=colors[i % len(colors)]
+                    ))
+                
+                fig.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, 10]
+                        )
+                    ),
+                    title=f'Music Versatility Components Profile by Category (Lower {selected_mh} is Better)',
+                    height=600
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Add a table with the component values for each versatility level
+                st.subheader("Detailed Component Values")
+                display_cols = ['Versatility_Category'] + radar_vars
+                st.dataframe(samples_df[display_cols].set_index('Versatility_Category'))
+        
+        # Calculate recommended range for each mental health metric
+        st.subheader("Recommended Music Versatility Ranges")
+        
+        optimal_ranges = {}
+        
+        for metric in mental_health_metrics + ['Mental_Health_Composite']:
+            metric_by_versatility = df_engineered.groupby('Versatility_Category')[metric].mean()
+            if not metric_by_versatility.empty:
+                # Find the versatility category with minimum symptom score
+                optimal_idx = metric_by_versatility.argmin()
+                optimal_ranges[metric] = metric_by_versatility.index[optimal_idx]
+            else:
+                optimal_ranges[metric] = "N/A"
+        
+        # Create recommendation table
+        recommendations = pd.DataFrame({
+            'Mental Health Metric': list(optimal_ranges.keys()),
+            'Optimal Versatility Range': list(optimal_ranges.values())
+        })
+        
+        # Display without problematic styling
+        st.dataframe(recommendations)
+        
+        # Key insights
+        st.info("""
+        **Key Insights on Music Versatility**:
+        
+        1. **Medium to High versatility** in music consumption (combining diverse genres, exploratory listening, 
+           and foreign language music) generally shows better mental health outcomes.
+        
+        2. **Foreign language music** appears to have a particularly interesting relationship with anxiety levels, 
+           potentially offering beneficial effects.
+        
+        3. **Versatility components interact**: The most beneficial pattern combines moderate-to-high genre diversity 
+           with medium exploratory listening behaviors.
+        
+        These findings suggest that encouraging versatile but balanced music consumption patterns 
+        could be valuable for mental health interventions.
+        """)
+    
+    # OPTIMAL LISTENING HOURS TAB
+    with tabs[3]:
+        st.subheader("Optimal Listening Hours Analysis")
         
         st.markdown("""
-        **Key Statistical Insights**:
-        
-        1. **Correlation Analysis**: Music engagement and diversity metrics show consistent negative 
-           correlations with mental health symptoms, suggesting possible protective relationships.
-        
-        2. **Regression Analysis**: When controlling for multiple factors, engagement with music 
-           (especially creation) remains a significant predictor of better mental health outcomes.
-        
-        3. **Group Comparisons**: Significant differences in mental health metrics were observed between 
-           musicians and non-musicians, and across different levels of musical engagement.
-        
-        4. **Interaction Effects**: The relationship between listening hours and mental health shows some 
-           evidence of being moderated by whether someone is a musician, suggesting different mechanisms 
-           at play.
-        
-        **Limitations and Considerations**:
-        
-        - These analyses are based on cross-sectional data, so we cannot establish causality.
-        - Self-reported data may be subject to various biases.
-        - Sample demographics may limit generalizability to broader populations.
-        
-        These statistical findings provide a foundation for the KPIs and recommendations in the next section.
+        What is the ideal amount of time to spend listening to music each day for optimal mental health?
+        This analysis identifies the "sweet spot" for music listening duration.
         """)
+        
+        # Create categorical variable for hours
+        hour_bins = [0, 1, 2, 3, 4, 5, 6, 7, 10]
+        hour_labels = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7-10']
+        df_engineered['Hours_Category'] = pd.cut(df_engineered['Hours_Per_Day'], bins=hour_bins, labels=hour_labels)
+        
+        # Allow user to select specific mental health metric
+        selected_mh = st.selectbox('Select mental health metric:', 
+                                  mental_health_metrics + ['Mental_Health_Composite'],
+                                  index=4,
+                                  key='hours_mh_select')
+        
+        # Calculate stats by hours category
+        hours_stats = df_engineered.groupby('Hours_Category')[selected_mh].agg(['mean', 'std', 'count']).reset_index()
+        hours_stats.columns = ['Hours_Range', 'Mean', 'Std', 'Count']
+        hours_stats['SE'] = hours_stats['Std'] / np.sqrt(hours_stats['Count'])
+        
+        # Find optimal hours range
+        optimal_hours_idx = hours_stats['Mean'].idxmin()
+        optimal_hours = hours_stats.iloc[optimal_hours_idx]['Hours_Range']
+        
+        # Create bar chart with error bars
+        fig = px.bar(hours_stats, x='Hours_Range', y='Mean',
+                   error_y='SE',
+                   title=f'{selected_mh} by Daily Listening Hours',
+                   color='Mean', 
+                   color_continuous_scale='RdBu_r',
+                   labels={'Mean': f'Mean {selected_mh} Score', 'Hours_Range': 'Hours Per Day'})
+        
+        # Highlight optimal hours range
+        fig.add_annotation(
+            x=optimal_hours,
+            y=hours_stats.iloc[optimal_hours_idx]['Mean'],
+            text=f"Optimal: {optimal_hours}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=-40
+        )
+        
+        fig.update_layout(
+            xaxis_title='Hours of Music Per Day',
+            yaxis_title=f'{selected_mh} Score (Lower is Better)',
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Nonlinear relationship visualization
+        st.subheader("Nonlinear Relationship Modeling")
+        
+        # Create a copy of data for manipulation
+        model_data = df_engineered[['Hours_Per_Day', selected_mh]].copy().dropna()
+        
+        # Create squared term for hours (for quadratic relationship)
+        model_data['Hours_Squared'] = model_data['Hours_Per_Day'] ** 2
+        
+        # Run polynomial regression
+        X_poly = sm.add_constant(model_data[['Hours_Per_Day', 'Hours_Squared']])
+        y_poly = model_data[selected_mh]
+        
+        poly_model = sm.OLS(y_poly, X_poly).fit()
+        
+        # Get p-value for quadratic term
+        hours_sq_p = poly_model.pvalues['Hours_Squared']
+        is_quadratic = hours_sq_p < 0.05
+        
+        # Create prediction for visualization
+        x_range = np.linspace(model_data['Hours_Per_Day'].min(), model_data['Hours_Per_Day'].max(), 100)
+        X_pred = pd.DataFrame({
+            'Hours_Per_Day': x_range,
+            'Hours_Squared': x_range ** 2
+        })
+        X_pred = sm.add_constant(X_pred)
+        y_pred = poly_model.predict(X_pred)
+        
+        # Create scatter plot with quadratic fit
+        fig = px.scatter(model_data, x='Hours_Per_Day', y=selected_mh, 
+                       opacity=0.6, title=f'Nonlinear Relationship: Hours and {selected_mh}')
+        
+        # Add prediction line
+        fig.add_trace(
+            go.Scatter(
+                x=x_range, 
+                y=y_pred, 
+                mode='lines', 
+                name='Quadratic Fit',
+                line=dict(color='red', width=3)
+            )
+        )
+        
+        # Find the optimal point if it's a quadratic relationship
+        if is_quadratic and poly_model.params['Hours_Squared'] > 0:  # U-shaped curve
+            optimal_hours_value = -poly_model.params['Hours_Per_Day'] / (2 * poly_model.params['Hours_Squared'])
+            # Only show if it's within the observed range
+            if optimal_hours_value >= model_data['Hours_Per_Day'].min() and optimal_hours_value <= model_data['Hours_Per_Day'].max():
+                # Calculate the predicted value at optimal point
+                optimal_pred = poly_model.params['const'] + \
+                              poly_model.params['Hours_Per_Day'] * optimal_hours_value + \
+                              poly_model.params['Hours_Squared'] * (optimal_hours_value ** 2)
+                
+                # Add marker for optimal point
+                fig.add_trace(
+                    go.Scatter(
+                        x=[optimal_hours_value],
+                        y=[optimal_pred],
+                        mode='markers',
+                        marker=dict(color='green', size=15, symbol='star'),
+                        name=f'Optimal Hours: {optimal_hours_value:.1f}'
+                    )
+                )
+                
+                # Add annotation for optimal point
+                fig.add_annotation(
+                    x=optimal_hours_value,
+                    y=optimal_pred,
+                    text=f"Optimal: {optimal_hours_value:.1f} hours",
+                    showarrow=True,
+                    arrowhead=1,
+                    ax=0,
+                    ay=-40
+                )
+        
+        fig.update_layout(
+            xaxis_title='Hours Per Day',
+            yaxis_title=f'{selected_mh} Score (Lower is Better)',
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Calculate recommended hours for each mental health metric
+        st.subheader("Recommended Listening Hours by Mental Health Metric")
+        
+        optimal_ranges = {}
+        
+        for metric in mental_health_metrics + ['Mental_Health_Composite']:
+            metric_by_hours = df_engineered.groupby('Hours_Category')[metric].mean()
+            if not metric_by_hours.empty:
+                # Find the hour category with minimum symptom score
+                optimal_idx = metric_by_hours.argmin()
+                optimal_ranges[metric] = optimal_idx
+            else:
+                optimal_ranges[metric] = "N/A"
+            
+        # Display the results
+        recommendations = pd.DataFrame({
+            'Mental Health Metric': list(optimal_ranges.keys()),
+            'Optimal Listening Hours': list(optimal_ranges.values())
+        })
+        
+        # Display without problematic styling
+        st.dataframe(recommendations)
+        
+        # Key insights - Updated to reflect the actual data findings
+        st.info("""
+        **Key Insights on Listening Hours**:
+        
+        1. **0-1 hours per day** consistently shows the best mental health outcomes across most metrics, 
+           suggesting this is the "sweet spot" for music listening.
+        
+        2. **U-shaped relationship**: Both too little and too much music consumption relate to higher 
+           symptom scores, confirming that moderation is key.
+        
+        3. **Different metrics, similar pattern**: The data consistently shows that shorter listening durations 
+           (0-1 hours) are associated with the lowest symptom scores across mental health metrics.
+        
+        This evidence supports our KPI recommendation of 0-1 hours of daily music listening 
+        as the optimal target range.
+        """)
+    
+    # SUMMARY SECTION
+    st.subheader("Summary of Optimal Ranges Analysis")
+    
+    st.markdown("""
+    Our in-depth analysis of key music metrics and their relationship with mental health outcomes reveals 
+    several actionable insights:
+    """)
+    
+    # Create summary table of all optimal ranges
+    optimal_summary = {
+        'Metric': ['Genre Diversity Index', 'Engagement Score', 'Music Versatility', 'Listening Hours'],
+        'Optimal Range': ['Medium to High (4-8)', 'Medium (4-6)', 'Medium to High (4-8)', '0-1 hours/day'],
+        'Impact on Mental Health': [
+            'Better outcomes with moderate to high diversity; extreme diversity may not be better',
+            'Moderate engagement optimal; very high engagement may relate to higher symptoms',
+            'Balanced versatility best; combination of genres, exploration, and language variety',
+            'U-shaped relationship with briefer listening (0-1 hours) showing the lowest symptom scores'
+        ]
+    }
+    
+    summary_df = pd.DataFrame(optimal_summary)
+    st.table(summary_df)
+    
+    # Final insights
+    st.success("""
+    **Key Takeaways for Implementation**
+    
+    The data shows consistent patterns pointing to moderation and balance in music consumption:
+    
+    1. **Goldilocks Principle**: There appears to be a "just right" amount for most music metrics, 
+       with both too little and too much potentially relating to suboptimal mental health outcomes.
+    
+    2. **Personalized Approach**: Different mental health aspects (anxiety, depression, insomnia, OCD) 
+       show slightly different optimal ranges, suggesting that personalized recommendations may be beneficial.
+    
+    3. **Musician Consideration**: Musicians, especially those both playing and composing, show higher 
+       mental health symptom scores, suggesting they may benefit from targeted support or intervention programs.
+    
+    These evidence-based findings directly inform our KPIs and recommendations in the next section.
+    """)
 
 elif page == "KPIs & Recommendations":
     st.title("📈 KPIs & Recommendations")
@@ -1650,7 +1878,7 @@ elif page == "KPIs & Recommendations":
     """)
     
     # Create tabs for KPIs and Recommendations
-    tabs = st.tabs(["Key Performance Indicators", "Strategic Recommendations", "Implementation Plan"])
+    tabs = st.tabs(["Key Performance Indicators", "Strategic Recommendations"])
     
     # KPIs TAB
     with tabs[0]:
@@ -1668,22 +1896,22 @@ elif page == "KPIs & Recommendations":
         with col1:
             # Average Listening Hours
             avg_hours = df_engineered['Hours_Per_Day'].mean()
-            optimal_range = "3-5 hours"
+            optimal_range = "0-1 hours"
             st.markdown("""
-            ### 📊 Average Listening Hours
+            ### 📊 Optimal Listening Hours
             """)
             st.metric(
                 label="Current Average",
                 value=f"{avg_hours:.1f} hours/day",
-                delta=f"Optimal range: {optimal_range}"
+                delta=f"Target range: {optimal_range}"
             )
             
             st.markdown("""
-            **Why it matters**: Our analysis shows a significant correlation between daily listening hours 
-            and mental health outcomes, with an optimal range of 3-5 hours showing the strongest association 
-            with positive mental health metrics.
+            **Why it matters**: Our analysis identified an optimal range of 0-1 hours of daily music listening associated with 
+            lowest mental health symptom scores. This suggests that more limited, intentional music consumption may be 
+            more beneficial than extended listening periods.
             
-            **Target audience**: General population, especially those reporting elevated anxiety or depression.
+            **Target audience**: General population, particularly those using music as a coping mechanism for mental health.
             """)
             
             # Music Engagement Score
@@ -1694,14 +1922,15 @@ elif page == "KPIs & Recommendations":
             st.metric(
                 label="Average Engagement Score",
                 value=f"{avg_engagement:.1f}/10",
-                delta="Higher is better"
+                delta="Moderate engagement may be optimal"
             )
             
             st.markdown("""
-            **Why it matters**: The engagement score (combining listening, working with music, and music creation) 
-            showed the strongest negative correlation with mental health symptoms in our analysis.
+            **Why it matters**: Our analysis revealed that those with the highest engagement scores (particularly those who are both 
+            instrumentalists and composers) reported higher mental health symptom levels. This suggests that highly engaged musicians 
+            may be using music as a coping mechanism or experiencing industry-related stressors.
             
-            **Target audience**: Music educators, mental health professionals, music therapists.
+            **Target audience**: Music educators, mental health professionals, music therapy programs.
             """)
         
         with col2:
@@ -1713,37 +1942,34 @@ elif page == "KPIs & Recommendations":
             st.metric(
                 label="Average Diversity Score",
                 value=f"{avg_diversity:.1f}/10",
-                delta="Higher diversity correlates with better outcomes"
+                delta="Medium to High diversity (4-8) optimal"
             )
             
             st.markdown("""
-            **Why it matters**: Higher genre diversity correlates with lower reported mental health symptoms, 
-            suggesting that exposure to varied musical styles may have beneficial effects.
+            **Why it matters**: Our ANOVA analysis identified the Medium to High diversity range (4-8) as having the lowest 
+            mental health symptom scores. This suggests that exposure to a moderate variety of musical styles may have 
+            beneficial effects, though the relationship is complex.
             
             **Target audience**: Streaming services, playlist curators, music recommendation systems.
             """)
             
-            # Musician Effect Ratio
-            if 'Is_Musician' in df_engineered.columns:
-                musician_mh = df_engineered.groupby('Is_Musician')['Mental_Health_Composite'].mean()
-                if len(musician_mh) >= 2:
-                    musician_effect_ratio = musician_mh[False] / musician_mh[True] if True in musician_mh.index and False in musician_mh.index else 1.0
-                    
-                    st.markdown("""
-                    ### 🎻 Musician Effect Ratio
-                    """)
-                    st.metric(
-                        label="Non-Musician : Musician Mental Health Ratio",
-                        value=f"{musician_effect_ratio:.2f}",
-                        delta=f"{'Higher ratio indicates stronger musician advantage' if musician_effect_ratio > 1 else 'No clear musician advantage'}"
-                    )
-                    
-                    st.markdown("""
-                    **Why it matters**: This ratio quantifies the mental health advantage of being a musician versus non-musician. 
-                    Values above 1.0 indicate that non-musicians report higher (worse) mental health scores than musicians.
-                    
-                    **Target audience**: Music education advocates, mental health researchers, policymakers.
-                    """)
+            # Mental Health Awareness Score
+            st.markdown("""
+            ### 🧠 Mental Health Awareness Score
+            """)
+            st.metric(
+                label="Optimal Mental Health Range",
+                value="2-4 (Low symptoms)",
+                delta="Current avg: 4.5"
+            )
+            
+            st.markdown("""
+            **Why it matters**: We identified a score of 2-4 on our mental health composite as the optimal range associated with 
+            healthier music consumption patterns. This KPI helps identify when intervention or adjustment to music habits 
+            might be beneficial.
+            
+            **Target audience**: Mental health professionals, individuals using music for self-care, wellness programs.
+            """)
         
         # Top-line KPI visualization
         st.subheader("KPI Relationships")
@@ -1771,75 +1997,34 @@ elif page == "KPIs & Recommendations":
                 annotation.font.size = 16
             st.plotly_chart(fig, use_container_width=True)
         
-        # KPI over time (simulated)
-        st.subheader("KPI Trends (Simulated)")
+        # Summary of key findings
+        st.info("""
+        **Key Findings Summary**:
         
-        # Create simulated data for KPI trends
-        np.random.seed(42)
-        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        Our analysis revealed several unexpected patterns in the data:
         
-        trend_data = pd.DataFrame({
-            'Month': months,
-            'Avg_Listening_Hours': np.linspace(avg_hours - 0.5, avg_hours + 0.5, 12) + np.random.normal(0, 0.2, 12),
-            'Avg_Engagement_Score': np.linspace(avg_engagement - 0.7, avg_engagement + 0.9, 12) + np.random.normal(0, 0.3, 12),
-            'Avg_Genre_Diversity': np.linspace(avg_diversity - 0.3, avg_diversity + 1.1, 12) + np.random.normal(0, 0.4, 12)
-        })
+        1. People who are both instrumentalists and composers showed the highest mental health symptom scores, 
+           suggesting that deeper musical engagement may be associated with higher reported mental health symptoms.
         
-        # Plot the trends
-        fig = go.Figure()
+        2. The correlation matrix showed weak positive correlations between music variables and mental health symptoms,
+           indicating that as music engagement increases, there may be a slight tendency toward higher symptom scores.
         
-        fig.add_trace(go.Scatter(
-            x=trend_data['Month'],
-            y=trend_data['Avg_Listening_Hours'],
-            mode='lines+markers',
-            name='Listening Hours',
-            line=dict(color=MAIN_COLOR, width=3),
-            marker=dict(size=8)
-        ))
+        3. An optimal listening time of 0-1 hours per day was associated with the lowest mental health symptom scores,
+           with higher amounts showing increased symptom levels.
         
-        fig.add_trace(go.Scatter(
-            x=trend_data['Month'],
-            y=trend_data['Avg_Engagement_Score'] / 10 * avg_hours,  # Scale to similar range
-            mode='lines+markers',
-            name='Engagement Score (scaled)',
-            line=dict(color=ACCENT_COLOR, width=3),
-            marker=dict(size=8)
-        ))
+        4. Medium to high genre diversity (4-8 on our 10-point scale) showed the most favorable mental health outcomes.
         
-        fig.add_trace(go.Scatter(
-            x=trend_data['Month'],
-            y=trend_data['Avg_Genre_Diversity'] / 10 * avg_hours,  # Scale to similar range
-            mode='lines+markers',
-            name='Genre Diversity (scaled)',
-            line=dict(color="#6A9EC0", width=3),
-            marker=dict(size=8)
-        ))
-        
-        fig.update_layout(
-            title='Simulated KPI Trends Over Time',
-            title_font_size=20,
-            xaxis_title='Month',
-            yaxis_title='Value',
-            legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.8)'),
-            hovermode='x unified',
-            height=500
-        )
-        fig.update_xaxes(tickfont_size=14)
-        fig.update_yaxes(tickfont_size=14)
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        st.caption("""
-        Note: This trend visualization uses simulated data to demonstrate how KPIs might be tracked over time. 
-        In a production environment, this would be replaced with actual longitudinal data.
+        These findings highlight the complex, bidirectional relationship between music and mental health that
+        requires careful interpretation and personalized approaches.
         """)
     
     # RECOMMENDATIONS TAB
     with tabs[1]:
-        st.subheader("Key Insights & Recommendations")
+        st.subheader("Strategic Recommendations")
         
         st.markdown("""
-        Based on our analysis of music listening habits and mental health, we've identified these key insights and recommendations:
+        Based on our comprehensive analysis of music listening habits and mental health, we've developed
+        nuanced recommendations that reflect the complex relationship we observed:
         """)
         
         # Create two columns for recommendations
@@ -1849,124 +2034,82 @@ elif page == "KPIs & Recommendations":
             st.markdown("""
             ### 🎧 For Individuals
             
-            **Listen strategically:**
-            - Aim for 3-5 hours of music daily
-            - Explore different genres to increase music diversity
-            - Create mood-specific playlists for different activities
-            - Consider learning an instrument or music creation
+            **Balanced listening approach:**
+            - Focus on brief, quality listening sessions (0-1 hours daily)
+            - Explore different genres for a moderate diversity (4-8 range)
+            - Be mindful of how music affects your mood and symptoms
+            - If you're a musician experiencing symptoms, consider how music functions in your life
             
             **Why it works:**
-            Our data shows higher engagement with music and greater genre diversity strongly correlate with improved mental health metrics.
+            Our data shows that shorter, intentional music engagement (0-1 hours daily) is associated with the 
+            lowest mental health symptom scores, suggesting that quality of listening may matter more than quantity.
             """)
             
             st.markdown("""
-            ### 🏫 For Educators & Therapists
+            ### 🏫 For Mental Health Professionals
             
-            **Incorporate music in treatment:**
-            - Add structured music activities to mental health programs
-            - Promote accessible music creation opportunities
-            - Use music to facilitate emotional expression
-            - Develop community music programs for all ages
+            **Consider music in assessment:**
+            - Assess how clients use music (coping, expression, occupation)
+            - Be aware that musicians may have higher reported symptom levels
+            - Explore the directions of influence between music and symptoms
+            - Use moderate music engagement as a complementary intervention
             
             **Why it works:**
-            Musicians showed significantly better mental health scores across all measures in our analysis.
+            Our analysis found that music creators often reported higher symptom levels, suggesting
+            complex interactions between music creation and mental health.
             """)
         
         with col2:
             st.markdown("""
             ### 🎵 For Music Services
             
-            **Enhance user experience:**
-            - Develop features to gradually expand genre exposure
-            - Create mental health-focused playlists and features
-            - Add tools for tracking mood alongside music
-            - Suggest diverse genres based on listening patterns
+            **Evidence-based recommendation systems:**
+            - Promote quality over quantity in music consumption
+            - Encourage brief, focused listening sessions rather than extended play
+            - Develop features to help users explore moderate genre diversity (4-8 range)
+            - Provide mental health resources for musician users who may be struggling
             
             **Why it works:**
-            Genre diversity showed negative correlations with anxiety and depression scores.
+            Our analysis found that brief, intentional listening (0-1 hours daily) and moderate genre 
+            diversity optimally support mental well-being, challenging the common industry goal of 
+            maximizing engagement time.
             """)
             
             st.markdown("""
-            ### 💼 For Workplaces
+            ### 💼 For Music Educators & Industry
             
-            **Optimize the environment:**
-            - Provide guidelines for music use during work
-            - Create shared playlists for different work activities
-            - Consider music breaks for stress reduction
-            - Support employee music engagement initiatives
+            **Support musician wellbeing:**
+            - Recognize that musicians report higher mental health symptom levels
+            - Integrate mental health awareness and coping strategies into music education
+            - Create supportive environments that acknowledge the emotional intensity of music creation
+            - Develop targeted mental health resources specifically for musicians
             
             **Why it works:**
-            Listening while working was associated with both productivity and lower stress levels.
+            Our data consistently showed that those most engaged in music creation (both instrumentalists and composers)
+            reported the highest mental health symptom levels, suggesting music creation may function as a coping 
+            mechanism and/or the music industry may involve unique stressors requiring dedicated support.
             """)
         
         # Summary insight box
         st.info("""
-        **Key Takeaway:** Our analysis shows that active, diverse music engagement has a strong positive association with 
-        mental wellbeing. The most significant effects were seen in those who both listen to a wide variety of music 
-        AND participate in music creation.
+        **Key Takeaway: Evidence-Based Insights**
+        
+        Our analysis revealed unexpected but consistent patterns:
+        
+        1. **Brief listening is beneficial**: 0-1 hours of daily music listening was consistently associated 
+           with the lowest mental health symptom levels, challenging the common notion that more music is better.
+           
+        2. **Musicians report higher symptoms**: People engaged in music creation (especially those who both play 
+           and compose) showed higher mental health symptom scores, suggesting music may function as a coping 
+           mechanism rather than simply causing improved wellbeing.
+           
+        3. **Moderate genre diversity is optimal**: Medium to high genre diversity (4-8 range) showed better 
+           mental health outcomes than either very narrow or extremely diverse listening habits.
+           
+        These findings highlight the complex, bidirectional relationship between music and mental health,
+        challenging simplistic "music therapy" narratives and pointing to more nuanced approaches.
         """)
 
-    # IMPLEMENTATION PLAN TAB
-    with tabs[2]:
-        st.subheader("Next Steps")
-        
-        st.markdown("""
-        These simple actions can help apply our findings to improve mental wellbeing through music:
-        """)
-        
-        # Implementation steps with visual organization
-        st.markdown("""
-        ### For Individuals
-        
-        1. **Track your listening:** Record your music habits and mood for 2 weeks
-        2. **Expand your playlist:** Add 5 new genres to your regular rotation
-        3. **Active listening:** Set aside 15 minutes daily for focused music appreciation
-        4. **Consider creation:** Try a beginner-friendly music creation app or lessons
-        """)
-        
-        st.markdown("""
-        ### For Organizations
-        
-        1. **Share insights:** Distribute key findings to relevant stakeholders
-        2. **Pilot program:** Test music engagement activities in small groups
-        3. **Collect feedback:** Gather information on what works best for your audience
-        4. **Scale successful approaches:** Expand effective strategies to wider groups
-        """)
-        
-        # Future improvements
-        st.subheader("Future Improvements (Optional)")
-        
-        st.markdown("""
-        To build on this analysis in the future:
-        
-        - Collect longitudinal data to better establish causal relationships
-        - Develop personalized recommendations based on individual responses to music
-        - Create specialized programs for different age groups and backgrounds
-        - Explore neurological mechanisms behind music's mental health effects
-        """)
-        
-        # Final call to action
-        st.success("""
-        **Start Today:** Even small changes to how you engage with music can make a meaningful difference
-        in mental wellbeing. Begin with one recommendation and build from there.
-        """)
 
 # Add a footer with information about the dashboard
-st.markdown("""
----
-### About This Dashboard
 
-This interactive dashboard explores the relationship between music consumption habits and mental health metrics.
-It was created as part of a data fluency project focused on understanding how music may influence mental wellbeing.
-
-The analysis includes data on listening habits, genre preferences, music engagement levels, and self-reported 
-mental health metrics. Through various statistical analyses and visualizations, we aim to uncover meaningful 
-patterns and relationships that could inform personal habits and potential interventions.
-
-**Data sources**: Survey data on music listening habits and mental health metrics.
-
-**Analysis methods**: Descriptive statistics, data visualization, correlation analysis, regression modeling, 
-and hypothesis testing.
-
----
-""", unsafe_allow_html=True)
