@@ -397,6 +397,13 @@ df_engineered = engineer_features(df)
 if page == "Data Overview":
     st.title("🎵 Music & Mental Health: Data Overview")
     
+    # Add main research question
+    st.markdown("""
+    <h2 style="text-align: center; color: white; margin: 30px 0; font-size: 36px; padding: 20px; background: linear-gradient(90deg, rgba(59,106,160,0.2) 0%, rgba(59,106,160,0.6) 50%, rgba(59,106,160,0.2) 100%); border-radius: 10px;">
+    How can we leverage musical habits to effectively improve mental health?
+    </h2>
+    """, unsafe_allow_html=True)
+    
     # Add Team and QR code at the beginning
     col1, col2 = st.columns([2, 1])
     
