@@ -1591,57 +1591,7 @@ elif page == "Hypothesis Testing":
         
         # Add a more informative radar chart to show component contributions
         # Select a few representative rows with different versatility levels
-        if len(df_engineered) > 10:
-            versatility_levels = df_engineered['Versatility_Category'].unique()
-            sample_data = []
-            
-            for level in versatility_levels:
-                # Get one representative sample from each level
-                level_data = df_engineered[df_engineered['Versatility_Category'] == level]
-                if not level_data.empty:
-                    # Find the row with the lowest mental health score in this level
-                    best_idx = level_data[selected_mh].idxmin()
-                    sample_data.append(level_data.loc[best_idx])
-            
-            if sample_data:
-                # Create a DataFrame with the samples
-                samples_df = pd.DataFrame(sample_data)
-                
-                # Create separate radar charts for each versatility level to avoid length mismatch
-                st.subheader("Music Versatility Profiles by Category")
-                
-                # Create a multi-line radar chart using go.Figure instead of px.line_polar
-                radar_vars = ['Genre_Diversity_Index', 'Exploratory_Level', 'Foreign_Languages', selected_mh]
-                
-                fig = go.Figure()
-                
-                colors = px.colors.qualitative.Bold
-                for i, row in samples_df.iterrows():
-                    fig.add_trace(go.Scatterpolar(
-                        r=[row[var] for var in radar_vars],
-                        theta=radar_vars,
-                        fill='toself',
-                        name=f"{row['Versatility_Category']}",
-                        line_color=colors[i % len(colors)]
-                    ))
-                
-                fig.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, 10]
-                        )
-                    ),
-                    title=f'Music Versatility Components Profile by Category (Lower {selected_mh} is Better)',
-                    height=600
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Add a table with the component values for each versatility level
-                st.subheader("Detailed Component Values")
-                display_cols = ['Versatility_Category'] + radar_vars
-                st.dataframe(samples_df[display_cols].set_index('Versatility_Category'))
+
         
         # Calculate recommended range for each mental health metric
         st.subheader("Recommended Music Versatility Ranges")
